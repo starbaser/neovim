@@ -964,28 +964,46 @@ do
         end,
       })
 
-      -- Send OSC 11 query along with DSR sequence to determine whether
-      -- terminal supports the query. If the DSR response comes first,
-      -- the terminal most likely doesn't support the bg color query,
-      -- and we don't have to keep waiting for a bg color response.
-      -- #32109
-      local osc11 = '\027]11;?\007'
-      local dsr = '\027[5n'
-      vim.api.nvim_ui_send(osc11 .. dsr)
+      -- If the C-level tui_query_bg_color() already ran and a terminal response
+      -- was received (populating v:termresponse), skip the redundant Lua-level
+      -- query. The C-level DSR response is consumed before the Lua TermResponse
+      -- autocmd exists, so it will never reach the callback above.
+      if vim.v.termresponse ~= '' then
+        did_dsr_response = true
+      end
 
-      -- Wait until detection of OSC 11 capabilities is complete to
-      -- ensure background is automatically set before user config.
-      if
-        not vim.wait(100, function()
-          return did_dsr_response
-        end, 1)
-        -- Don't show the warning when running tests to avoid flakiness.
-        and os.getenv('NVIM_TEST') == nil
-      then
-        vim.notify(
-          'defaults.lua: Did not detect DSR response from terminal. This results in a slower startup time.',
-          vim.log.levels.WARN
-        )
+      if not did_dsr_response then
+        -- Send OSC 11 query along with DSR sequence to determine whether
+        -- terminal supports the query. If the DSR response comes first,
+        -- the terminal most likely doesn't support the bg color query,
+        -- and we don't have to keep waiting for a bg color response.
+        -- #32109
+        local osc11 = '\027]11;?\007'
+        local dsr = '\027[5n'
+        vim.api.nvim_ui_send(osc11 .. dsr)
+
+        -- Force a libuv I/O pump to flush the pending RPC write. During early
+        -- startup, LOOP_PROCESS_EVENTS in multiqueue.h always takes the
+        -- multiqueue_process_events branch (queue is never empty), starving
+        -- loop_poll_events which actually drives libuv async I/O. Without this,
+        -- the ui_send write never reaches the TUI pipe and the DSR response
+        -- never arrives.
+        vim.cmd.redraw()
+
+        -- Wait until detection of OSC 11 capabilities is complete to
+        -- ensure background is automatically set before user config.
+        if
+          not vim.wait(100, function()
+            return did_dsr_response
+          end, 1)
+          -- Don't show the warning when running tests to avoid flakiness.
+          and os.getenv('NVIM_TEST') == nil
+        then
+          vim.notify(
+            'defaults.lua: Did not detect DSR response from terminal. This results in a slower startup time.',
+            vim.log.levels.WARN
+          )
+        end
       end
     end
 
