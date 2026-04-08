@@ -42,6 +42,7 @@
 #include "nvim/os/shell.h"
 #include "nvim/terminal.h"
 #include "nvim/types_defs.h"
+#include "nvim/ui_client.h"
 
 #ifdef MSWIN
 # include "nvim/os/fs.h"
@@ -166,7 +167,13 @@ bool channel_close(uint64_t id, ChannelPart part, const char **error)
       chan->stream.err.closed = true;
       // Don't close on exit, in case late error messages
       if (!exiting) {
-        fclose(stderr);
+        // Don't close the file descriptor, as that may cause later writes to stderr
+        // to go to an unrelated file. Redirect it to NUL or /dev/null instead.
+#ifdef MSWIN
+        freopen("NUL:", "w", stderr);
+#else
+        freopen("/dev/null", "w", stderr);
+#endif
       }
       channel_decref(chan);
     }
@@ -781,6 +788,21 @@ static void channel_proc_exit_cb(Proc *proc, int status, void *data)
     terminal_close(&chan->term, status);
   }
 
+  // TODO(justinmk): figure out why rpc_close sometimes(??) isn't called.
+  // Theories:
+  // - EOF not received in receive_msgpack, then doesn't call chan_close_on_err().
+  // - proc_close_handles not tickled by ui_client.c's LOOP_PROCESS_EVENTS?
+  if (!exiting && ui_client_channel_id == chan->id) {
+    // Need to call ui_client_attach_to_restarted_server() here as well, as sometimes
+    // rpc_close_event() hasn't been called yet (also see comments above).
+    ui_client_attach_to_restarted_server();
+    if (ui_client_channel_id == chan->id) {
+      // If the current embedded server has exited and no new server is started,
+      // the client should exit with the same status.
+      exit_on_closed_chan(status);
+    }
+  }
+
   // If process did not exit, we only closed the handle of a detached process.
   bool exited = (status >= 0);
   if (exited && chan->on_exit.type != kCallbackNone) {
@@ -847,6 +869,7 @@ void channel_terminal_alloc(buf_T *buf, Channel *chan)
     .data = chan,
     .width = chan->stream.pty.width,
     .height = chan->stream.pty.height,
+    .read_pause_cb = term_read_pause,
     .write_cb = term_write,
     .resize_cb = term_resize,
     .resume_cb = term_resume,
@@ -856,6 +879,19 @@ void channel_terminal_alloc(buf_T *buf, Channel *chan)
   buf->b_p_channel = (OptInt)chan->id;  // 'channel' option
   channel_incref(chan);
   chan->term = terminal_alloc(buf, topts);
+}
+
+static void term_read_pause(bool pause, void *data)
+{
+  Channel *chan = data;
+  if (chan->stream.proc.out.s.closed) {
+    return;
+  }
+  if (pause) {
+    rstream_stop_inner(&chan->stream.proc.out);
+  } else {
+    rstream_start_inner(&chan->stream.proc.out);
+  }
 }
 
 static void term_write(const char *buf, size_t size, void *data)

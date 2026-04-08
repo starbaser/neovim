@@ -21,9 +21,8 @@ describe('vim.net.request', function()
     local content = exec_lua([[
       local done = false
       local result
-      local M = require('vim.net')
 
-      M.request("https://httpbingo.org/anything", { retry = 3 }, function(err, body)
+      vim.net.request("https://httpbingo.org/anything", { retry = 3 }, function(err, body)
         assert(not err, err)
         result = body.body
         done = true
@@ -63,9 +62,8 @@ describe('vim.net.request', function()
     local err = exec_lua([[
       local done = false
       local result
-      local M = require('vim.net')
 
-      M.request("https://httpbingo.org/status/404", {}, function(e, _)
+      vim.net.request("https://httpbingo.org/status/404", {}, function(e, _)
         result = e
         done = true
       end)
@@ -75,5 +73,94 @@ describe('vim.net.request', function()
     ]])
 
     assert_404_error(err)
+  end)
+
+  it('plugin writes output to buffer', function()
+    t.skip(skip_integ, 'NVIM_TEST_INTEG not set: skipping network integration test')
+    local content = exec_lua([[
+      local lines
+
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.net.request("https://httpbingo.org", { outbuf = buf })
+
+      vim.wait(2000, function()
+        lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        return lines[1] ~= ""
+      end)
+
+      return lines
+    ]])
+    assert(content and content[1]:find('html'))
+  end)
+
+  it('works with :read', function()
+    t.skip(skip_integ, 'NVIM_TEST_INTEG not set: skipping network integration test')
+    local content = exec_lua([[
+      vim.cmd('runtime plugin/net.lua')
+      local lines
+
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'Here is some text' })
+      vim.cmd(':read https://example.com')
+
+      vim.wait(2000, function()
+        lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+        return #lines > 1
+      end)
+
+      return lines
+    ]])
+    t.eq(true, content ~= nil)
+    t.eq(true, content[1]:find('Here') ~= nil)
+    t.eq(true, content[2]:find('html') ~= nil)
+  end)
+
+  it('opens remote tar.gz URLs as tar archives', function()
+    t.skip(skip_integ, 'NVIM_TEST_INTEG not set: skipping network integration test')
+
+    local rv = exec_lua([[
+      vim.cmd('runtime! plugin/net.lua')
+      vim.cmd('runtime! plugin/tarPlugin.vim')
+
+      vim.cmd('edit https://github.com/neovim/neovim/releases/download/nightly/nvim-macos-x86_64.tar.gz')
+
+      vim.wait(2500, function()
+        return vim.bo.filetype == 'tar' or vim.b.tarfile ~= nil
+      end)
+
+      return {
+        filetype = vim.bo.filetype,
+        modified = vim.bo.modified,
+        tarfile = vim.b.tarfile ~= nil,
+      }
+    ]])
+
+    t.eq('tar', rv.filetype)
+    t.eq(false, rv.modified)
+    t.eq(true, rv.tarfile)
+  end)
+
+  it('opens remote zip URLs as zip archives', function()
+    t.skip(skip_integ, 'NVIM_TEST_INTEG not set: skipping network integration test')
+
+    local rv = exec_lua([[
+      vim.cmd('runtime! plugin/net.lua')
+      vim.cmd('runtime! plugin/zipPlugin.vim')
+
+      vim.cmd('edit https://github.com/neovim/neovim/releases/download/nightly/nvim-win-arm64.zip')
+
+      vim.wait(2500, function()
+        return vim.bo.filetype == 'zip' or vim.b.zipfile ~= nil
+      end)
+
+      return {
+        filetype = vim.bo.filetype,
+        modified = vim.bo.modified,
+        zipfile = vim.b.zipfile ~= nil,
+      }
+    ]])
+
+    t.eq('zip', rv.filetype)
+    t.eq(false, rv.modified)
+    t.eq(true, rv.zipfile)
   end)
 end)

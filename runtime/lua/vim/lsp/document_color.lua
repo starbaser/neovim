@@ -236,6 +236,7 @@ end
 function Provider:clear()
   for _, state in pairs(self.client_state) do
     state.hl_info = {}
+    state.processed_version = nil
     state.applied_version = nil
     api.nvim_buf_clear_namespace(self.bufnr, state.namespace, 0, -1)
   end
@@ -266,23 +267,23 @@ api.nvim_set_decoration_provider(document_color_ns, {
             api.nvim_buf_set_extmark(
               bufnr,
               state.namespace,
-              hl.range.start.row,
-              hl.range.start.col,
+              hl.range.start_row,
+              hl.range.start_col,
               {
-                end_row = hl.range.end_.row,
-                end_col = hl.range.end_.col,
+                end_row = hl.range.end_row,
+                end_col = hl.range.end_col,
                 hl_group = hl.hl_group,
                 strict = false,
               }
             )
           else
             -- Default swatch: \uf0c8
-            local swatch = style == 'virtual' and ' ' or style
+            local swatch = style == 'virtual' and ' ' or style
             api.nvim_buf_set_extmark(
               bufnr,
               state.namespace,
-              hl.range.start.row,
-              hl.range.start.col,
+              hl.range.start_row,
+              hl.range.start_col,
               {
                 virt_text = { { swatch, hl.hl_group } },
                 virt_text_pos = 'inline',
@@ -306,7 +307,7 @@ local function get_hl_info_under_cursor(provider)
 
   for client_id, state in pairs(provider.client_state) do
     for _, hl in ipairs(state.hl_info) do
-      if vim.Range.has(hl.range, cursor_pos) then
+      if hl.range:has(cursor_pos) then
         return hl, client_id
       end
     end

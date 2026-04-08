@@ -1356,10 +1356,7 @@ local options = {
         used.  The command-line will cover the last line of the screen when
         shown.
 
-        WARNING: `cmdheight=0` is EXPERIMENTAL. Expect some unwanted behaviour.
-        Some 'shortmess' flags and similar mechanism might fail to take effect,
-        causing unwanted hit-enter prompts.  Some informative messages, both
-        from Nvim itself and plugins, will not be displayed.
+        WARNING: `cmdheight=0` is EXPERIMENTAL. Works better with |ui2| enabled.
       ]=],
       full_name = 'cmdheight',
       redraw = { 'all_windows' },
@@ -1546,8 +1543,11 @@ local options = {
         and from tags to 5.  Other sources remain unlimited.
         Note: The match limit takes effect only during forward completion
         (CTRL-N) and is ignored during backward completion (CTRL-P).
+
+        This option cannot be set in a modeline when 'modelineexpr' is off.
       ]=],
       full_name = 'complete',
+      modelineexpr = true,
       list = 'onecomma',
       scope = { 'buf' },
       short_desc = N_('specify how Insert mode completion works'),
@@ -3287,7 +3287,7 @@ local options = {
       ]=],
       expand_cb = 'expand_set_chars_option',
       full_name = 'fillchars',
-      list = 'onecomma',
+      list = 'onecommacolon',
       redraw = { 'current_window' },
       scope = { 'global', 'win' },
       short_desc = N_('characters to use for displaying special items'),
@@ -4257,8 +4257,10 @@ local options = {
         You can include a line break.  Simplest method is to use |:let|: >vim
         	let &guitabtooltip = "line one\nline two"
         <
+        This option cannot be set in a modeline when 'modelineexpr' is off.
       ]=],
       full_name = 'guitabtooltip',
+      modelineexpr = true,
       redraw = { 'current_window' },
       scope = { 'global' },
       short_desc = N_('GUI: custom tooltip for a tab page'),
@@ -5010,7 +5012,6 @@ local options = {
         		the action occurred.
 
           clean         Remove unloaded buffers from the jumplist.
-        		EXPERIMENTAL: this flag may change in the future.
       ]=],
       full_name = 'jumpoptions',
       list = 'onecomma',
@@ -5531,7 +5532,7 @@ local options = {
       ]=],
       expand_cb = 'expand_set_chars_option',
       full_name = 'listchars',
-      list = 'onecomma',
+      list = 'onecommacolon',
       redraw = { 'current_window' },
       scope = { 'global', 'win' },
       short_desc = N_('characters for displaying in list mode'),
@@ -6699,6 +6700,9 @@ local options = {
         Defines the default border style of popupmenu windows. See 'winborder' for
         valid values. |hl-PmenuBorder| is used for highlighting the border, and when
         style is "shadow" the |hl-PmenuShadow| and |hl-PmenuShadowThrough| groups are used.
+
+        This option also applies to mouse popup menus when 'mousemodel' is set to
+        "popup" or "popup_setpos", which will display borders using the same style.
       ]=],
       short_desc = N_('border of popupmenu'),
       type = 'string',
@@ -8530,7 +8534,7 @@ local options = {
         encoding is used, Vim doesn't check it.
         How the related spell files are found is explained here: |spell-load|.
 
-        If the |spellfile.lua| plugin is active and you use a language name
+        If the |package-spellfile| plugin is active and you use a language name
         for which Vim cannot find the .spl file in 'runtimepath' the plugin
         will ask you if you want to download the file.
 
@@ -8804,6 +8808,7 @@ local options = {
           '%f %h%w%m%r ',
           "%{% v:lua.require('vim._core.util').term_exitcode() %}",
           '%=',
+          "%{% luaeval('(package.loaded[''vim.ui''] and vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and vim.ui.progress_status()) or '''' ')%}",
           "%{% &showcmdloc == 'statusline' ? '%-10.S ' : '' %}",
           "%{% exists('b:keymap_name') ? '<'..b:keymap_name..'> ' : '' %}",
           "%{% &busy > 0 ? '◐ ' : '' %}",
@@ -8815,11 +8820,13 @@ local options = {
       desc = [=[
         Sets the |status-line|.
 
-        The option consists of printf style '%' items interspersed with
-        normal text.  Each status line item is of the form:
+        Contains printf-style "%" items interspersed with normal text, where
+        each item has the form: >
           %-0{minwid}.{maxwid}{item}
-        All fields except the {item} are optional.  A single percent sign can
-        be given as "%%".
+        <
+        All fields except {item} are optional.  Use "%%" to show a literal "%"
+        char.  Setting this option to empty (`:set statusline=`) sets its
+        value to the default.
 
         						*stl-%!*
         When the option starts with "%!" then it is used as an expression,

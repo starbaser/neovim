@@ -2107,6 +2107,7 @@ buf_T *buflist_new(char *ffname_arg, char *sfname_arg, linenr_T lnum, int flags)
   buf->b_prompt_text = NULL;
   buf->b_prompt_start = (fmark_T)INIT_FMARK;
   buf->b_prompt_start.mark.col = 2;  // default prompt is "% "
+  buf->b_prompt_append_new_line = true;
 
   return buf;
 }
@@ -3663,7 +3664,7 @@ void ex_buffer_all(exarg_T *eap)
                : wp->w_width != Columns)
            || (had_tab > 0 && wp != firstwin))
           && !ONE_WINDOW
-          && !(win_locked(curwin) || wp->w_buffer->b_locked > 0)
+          && !(win_locked(wp) || wp->w_buffer->b_locked > 0)
           && !is_aucmd_win(wp)) {
         if (win_close(wp, false, false) == FAIL) {
           break;

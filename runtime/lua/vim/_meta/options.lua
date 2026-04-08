@@ -965,10 +965,7 @@ vim.go.cb = vim.go.clipboard
 --- used.  The command-line will cover the last line of the screen when
 --- shown.
 ---
---- WARNING: `cmdheight=0` is EXPERIMENTAL. Expect some unwanted behaviour.
---- Some 'shortmess' flags and similar mechanism might fail to take effect,
---- causing unwanted hit-enter prompts.  Some informative messages, both
---- from Nvim itself and plugins, will not be displayed.
+--- WARNING: `cmdheight=0` is EXPERIMENTAL. Works better with `ui2` enabled.
 ---
 --- @type integer
 vim.o.cmdheight = 1
@@ -1112,6 +1109,8 @@ vim.bo.cms = vim.bo.commentstring
 --- and from tags to 5.  Other sources remain unlimited.
 --- Note: The match limit takes effect only during forward completion
 --- (CTRL-N) and is ignored during backward completion (CTRL-P).
+---
+--- This option cannot be set in a modeline when 'modelineexpr' is off.
 ---
 --- @type string
 vim.o.complete = ".,w,b,u,t"
@@ -3807,7 +3806,6 @@ vim.go.js = vim.go.joinspaces
 --- 		the action occurred.
 ---
 ---   clean         Remove unloaded buffers from the jumplist.
---- 		EXPERIMENTAL: this flag may change in the future.
 ---
 --- @type string
 vim.o.jumpoptions = "clean"
@@ -5107,6 +5105,9 @@ vim.go.pb = vim.go.pumblend
 --- Defines the default border style of popupmenu windows. See 'winborder' for
 --- valid values. `hl-PmenuBorder` is used for highlighting the border, and when
 --- style is "shadow" the `hl-PmenuShadow` and `hl-PmenuShadowThrough` groups are used.
+---
+--- This option also applies to mouse popup menus when 'mousemodel' is set to
+--- "popup" or "popup_setpos", which will display borders using the same style.
 ---
 --- @type string
 vim.o.pumborder = ""
@@ -6524,7 +6525,7 @@ vim.bo.spf = vim.bo.spellfile
 --- encoding is used, Vim doesn't check it.
 --- How the related spell files are found is explained here: `spell-load`.
 ---
---- If the `spellfile.lua` plugin is active and you use a language name
+--- If the `package-spellfile` plugin is active and you use a language name
 --- for which Vim cannot find the .spl file in 'runtimepath' the plugin
 --- will ask you if you want to download the file.
 ---
@@ -6748,11 +6749,15 @@ vim.wo.stc = vim.wo.statuscolumn
 
 --- Sets the `status-line`.
 ---
---- The option consists of printf style '%' items interspersed with
---- normal text.  Each status line item is of the form:
+--- Contains printf-style "%" items interspersed with normal text, where
+--- each item has the form:
+--- ```
 ---   %-0{minwid}.{maxwid}{item}
---- All fields except the {item} are optional.  A single percent sign can
---- be given as "%%".
+--- ```
+---
+--- All fields except {item} are optional.  Use "%%" to show a literal "%"
+--- char.  Setting this option to empty (`:set statusline=`) sets its
+--- value to the default.
 ---
 --- 						*stl-%!*
 --- When the option starts with "%!" then it is used as an expression,
@@ -6991,7 +6996,7 @@ vim.wo.stc = vim.wo.statuscolumn
 ---
 ---
 --- @type string
-vim.o.statusline = "%<%f %h%w%m%r %{% v:lua.require('vim._core.util').term_exitcode() %}%=%{% &showcmdloc == 'statusline' ? '%-10.S ' : '' %}%{% exists('b:keymap_name') ? '<'..b:keymap_name..'> ' : '' %}%{% &busy > 0 ? '◐ ' : '' %}%{% luaeval('(package.loaded[''vim.diagnostic''] and next(vim.diagnostic.count()) and vim.diagnostic.status() .. '' '') or '''' ') %}%{% &ruler ? ( &rulerformat == '' ? '%-14.(%l,%c%V%) %P' : &rulerformat ) : '' %}"
+vim.o.statusline = "%<%f %h%w%m%r %{% v:lua.require('vim._core.util').term_exitcode() %}%=%{% luaeval('(package.loaded[''vim.ui''] and vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and vim.ui.progress_status()) or '''' ')%}%{% &showcmdloc == 'statusline' ? '%-10.S ' : '' %}%{% exists('b:keymap_name') ? '<'..b:keymap_name..'> ' : '' %}%{% &busy > 0 ? '◐ ' : '' %}%{% luaeval('(package.loaded[''vim.diagnostic''] and next(vim.diagnostic.count()) and vim.diagnostic.status() .. '' '') or '''' ') %}%{% &ruler ? ( &rulerformat == '' ? '%-14.(%l,%c%V%) %P' : &rulerformat ) : '' %}"
 vim.o.stl = vim.o.statusline
 vim.wo.statusline = vim.o.statusline
 vim.wo.stl = vim.wo.statusline
